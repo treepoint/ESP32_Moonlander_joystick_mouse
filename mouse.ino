@@ -305,6 +305,7 @@ void delay_next_tick() {
 
 void setup() {
   Serial.begin(9600);
+  setCpuFrequencyMhz(160);
   pinMode(SW_PIN, INPUT_PULLUP);
   bleMouse.begin();
 }
