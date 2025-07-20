@@ -11,7 +11,7 @@ BleMouse bleMouse("ESP32 Mouse");
 #define RECONNECTION_TIMEOUT 15  // Таймаут перезапуска, если нет связи
 
 //// БЫСТРОДЕЙСТВИЕ
-#define POOLING_RATE 125  // Частота опроса в секунду
+#define POOLING_RATE 100  // Частота опроса в секунду
 #define TICK_DELAY 1000/POOLING_RATE // Задержка между опросами сенсоров
 #define SECONDS_TO_LOW_RATE 30  // Время до перехода в энергосберегающий режим
 
@@ -363,7 +363,15 @@ void loop() {
 
       last_mouse_move_time = 0;
     } else {
-      last_mouse_move_time += millis();
+        static unsigned long last_check = 0;
+        unsigned long now = millis();
+
+        if (last_check == 0) {
+          last_check = now;  // Первичная инициализация
+        }
+
+        last_mouse_move_time += (now - last_check);
+        last_check = now;
     }
 
     delay_next_tick();
