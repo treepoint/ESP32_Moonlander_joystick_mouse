@@ -1,14 +1,13 @@
-#include <BleMouse.h>
-#include <math.h>  
+#include <USB.h>
+#include <USBHIDMouse.h>
+#include <math.h> 
 
-BleMouse bleMouse("Moonlander Mouse");  
+USBHIDMouse Mouse;  
 
 //// БАЗОВЫЕ ПАРАМЕТРЫ
-#define VRX_PIN 36 // X-ось (аналоговый вход)
-#define VRY_PIN 39 // Y-ось (аналоговый вход)
-#define SW_PIN  32 // Кнопка джойстика (цифровой вход)
-
-#define RECONNECTION_TIMEOUT 30  // Таймаут перезапуска, если нет связи, в секундах
+#define VRX_PIN 3 // X-ось (аналоговый вход)
+#define VRY_PIN 2 // Y-ось (аналоговый вход)
+#define SW_PIN  17 // Кнопка джойстика (цифровой вход)
 
 //// БЫСТРОДЕЙСТВИЕ
 #define POOLING_RATE 100  // Частота опроса в секунду
@@ -85,18 +84,6 @@ int median(int* buffer) {
 
   // Возвращаем центральное значение
   return sortedBuffer[BUFFER_SIZE / 2];
-}
-
-static unsigned long lost_connection_time = 0;
-
-void restart_connection() {
-  if (lost_connection_time == 0) {
-      lost_connection_time = millis();
-  } else if (millis() - lost_connection_time > RECONNECTION_TIMEOUT * 1000) {
-    Serial.println("Restart");
-    delay(100);
-    esp_restart();
-  }
 }
 
 int deadzone_filter(int paramX, int paramY) {
@@ -210,14 +197,23 @@ void calibrateJoystickMaxStrength(int duration_ms = 10000) {
   Serial.print("MAX_MAG_RIGHT: "); Serial.println(MAX_MAG_RIGHT);
 }
 
-static int is_calibrated = 1;
+int need_calibration = 1;
 
 void calibration() {
-  if (is_calibrated == 0) {
-    calibrateJoystick(centerX, centerY);
-    calibrateJoystickMaxStrength();
+  if (need_calibration == 1) {
+    digitalWrite(15, HIGH);
+    delay(500); 
 
-    is_calibrated = 1;
+    calibrateJoystick(centerX, centerY);
+
+    delay(500); 
+    digitalWrite(15, LOW);
+    delay(500); 
+    digitalWrite(15, HIGH);
+    calibrateJoystickMaxStrength();
+    digitalWrite(15, LOW);
+
+    need_calibration = 0;
   } 
 }
 
@@ -225,7 +221,7 @@ void process_button() {
   int btn = digitalRead(SW_PIN);
 
   if (btn == LOW) {
-    bleMouse.click(MOUSE_LEFT);
+    Mouse.click(MOUSE_LEFT);
   }
 }
 
@@ -307,17 +303,21 @@ void delay_next_tick() {
 }
 
 void setup() {
+  pinMode(15, OUTPUT); // На WeMos S2 Mini встроенный LED на GPIO15
+
+  USB.begin();
+  Mouse.begin();
+
   Serial.begin(9600);
+
   pinMode(SW_PIN, INPUT_PULLUP);
-  delay(500);  // <- иногда критично
-  bleMouse.begin();
-  bleMouse.setBatteryLevel(100);
+  pinMode(VRX_PIN, INPUT);
+  pinMode(VRY_PIN, INPUT);
+
+  analogReadResolution(12); // Диапазон 0–4095 для ESP32-S2
 }
 
 void loop() {
-  if (bleMouse.isConnected()) {
-    lost_connection_time = 0; // Сбрасываем время последнего подключения
-
     calibration(); // Запускаем калибровку если требуется
 
     process_button(); // Обрабатываем нажатие кнопки
@@ -364,7 +364,7 @@ void loop() {
       int deltaX = rotatedX * mouse_speed;
       int deltaY = rotatedY * mouse_speed;
 
-      bleMouse.move(deltaX, deltaY);
+      Mouse.move(deltaX, deltaY);
 
       last_mouse_move_time = 0;
     } else {
@@ -380,10 +380,4 @@ void loop() {
     }
 
     delay_next_tick();
-  } 
-  
-  // Переподнимаем подключение если нет коннекта
-  if (!bleMouse.isConnected()) {
-    restart_connection();
-  }
-}
+} 
