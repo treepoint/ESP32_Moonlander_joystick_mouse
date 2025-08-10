@@ -1,14 +1,14 @@
 #include <BleMouse.h>
 #include <math.h>  
 
-BleMouse bleMouse("ESP32 Mouse");  
+BleMouse bleMouse("Moonlander Mouse");  
 
 //// БАЗОВЫЕ ПАРАМЕТРЫ
 #define VRX_PIN 36 // X-ось (аналоговый вход)
 #define VRY_PIN 39 // Y-ось (аналоговый вход)
 #define SW_PIN  32 // Кнопка джойстика (цифровой вход)
 
-#define RECONNECTION_TIMEOUT 15  // Таймаут перезапуска, если нет связи
+#define RECONNECTION_TIMEOUT 30  // Таймаут перезапуска, если нет связи, в секундах
 
 //// БЫСТРОДЕЙСТВИЕ
 #define POOLING_RATE 100  // Частота опроса в секунду
@@ -289,8 +289,11 @@ Coordinates get_rotated_coordinates(Coordinates coordinates) {
 Shift get_shift(Coordinates coordinates) {
   Shift result;
 
-  result.magnitude = sqrt(coordinates.x * coordinates.x + coordinates.y * coordinates.y);
-  result.angle = atan2(coordinates.y, coordinates.x); 
+  float x = coordinates.x;
+  float y = coordinates.y;
+
+  result.magnitude = sqrtf(x * x + y * y);
+  result.angle = atan2f(y, x);
 
   return result;
 }
@@ -305,9 +308,10 @@ void delay_next_tick() {
 
 void setup() {
   Serial.begin(9600);
-  setCpuFrequencyMhz(160);
   pinMode(SW_PIN, INPUT_PULLUP);
+  delay(500);  // <- иногда критично
   bleMouse.begin();
+  bleMouse.setBatteryLevel(100);
 }
 
 void loop() {
@@ -352,7 +356,7 @@ void loop() {
 
       //Находим скорость мыши
       float strength = constrain(shift.magnitude / max_magnitude, 0.0, 1.0);
-      float curved_strength = pow(strength, SPEED_CURVE_COEF);
+      float curved_strength = powf(strength, SPEED_CURVE_COEF);
 
       int mouse_speed = round(MOUSE_DEFAULT_SPEED + MOUSE_MAX_SPEED * curved_strength); 
 
